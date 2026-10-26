@@ -1,0 +1,53 @@
+[==========] Running 13 tests from 1 test suite.
+[----------] Global test environment set-up.
+[----------] 13 tests from UberDispatchTest
+[ RUN      ] UberDispatchTest.ValidatesLogFilePathAndWritesTimestampedEvents
+Driver 1 added successfully.
+[       OK ] UberDispatchTest.ValidatesLogFilePathAndWritesTimestampedEvents (55 ms)
+[ RUN      ] UberDispatchTest.AddsDriversWithinCapacityAndReleasesAssignments
+Driver 1 added successfully.
+Driver 2 added successfully.
+Driver 3 added successfully.
+Driver 4 added successfully.
+Driver 5 added successfully.
+Driver 6 added successfully.
+Driver 7 added successfully.
+Driver 8 added successfully.
+Driver 9 added successfully.
+Driver 10 added successfully.
+Driver limit reached.
+[       OK ] UberDispatchTest.AddsDriversWithinCapacityAndReleasesAssignments (7 ms)
+[ RUN      ] UberDispatchTest.TracksAllocationsFailureInjectionAndUnknownFrees
+[       OK ] UberDispatchTest.TracksAllocationsFailureInjectionAndUnknownFrees (5 ms)
+[ RUN      ] UberDispatchTest.ReportsLogFileOpenFailure
+Driver 1 added successfully.
+[       OK ] UberDispatchTest.ReportsLogFileOpenFailure (13 ms)
+[ RUN      ] UberDispatchTest.LogsHighMemoryAlertsAndResetsTheAlertAfterFree
+[       OK ] UberDispatchTest.LogsHighMemoryAlertsAndResetsTheAlertAfterFree (5 ms)
+[ RUN      ] UberDispatchTest.RejectsInvalidAndFailedRideRequests
+[       OK ] UberDispatchTest.RejectsInvalidAndFailedRideRequests (4 ms)
+[ RUN      ] UberDispatchTest.AssignsAndProcessesRideAndUpdatesStatistics
+Driver 1 added successfully.
+Ride processed successfully.
+[       OK ] UberDispatchTest.AssignsAndProcessesRideAndUpdatesStatistics (7 ms)
+[ RUN      ] UberDispatchTest.QueuesRidesWhenThereAreNoAvailableDrivers
+Ride processed successfully.
+[       OK ] UberDispatchTest.QueuesRidesWhenThereAreNoAvailableDrivers (3 ms)
+[ RUN      ] UberDispatchTest.HandlesMissingRidesAndNullStatistics
+No active rides.
+[       OK ] UberDispatchTest.HandlesMissingRidesAndNullStatistics (1 ms)
+[ RUN      ] UberDispatchTest.ExercisesDisplayAndStatisticsFunctions
+Driver 1 added successfully.
+[       OK ] UberDispatchTest.ExercisesDisplayAndStatisticsFunctions (8 ms)
+[ RUN      ] UberDispatchTest.ProcessesStandaloneRideAndReleasesItsDriver
+Driver 1 added successfully.
+[       OK ] UberDispatchTest.ProcessesStandaloneRideAndReleasesItsDriver (3 ms)
+[ RUN      ] UberDispatchTest.SimulatesConcurrentRideRequestsAndRejectsInvalidWorkerCounts
+[       OK ] UberDispatchTest.SimulatesConcurrentRideRequestsAndRejectsInvalidWorkerCounts (243 ms)
+[ RUN      ] UberDispatchTest.CleanupReleasesAllOutstandingRideAllocations
+[       OK ] UberDispatchTest.CleanupReleasesAllOutstandingRideAllocations (3 ms)
+[----------] 13 tests from UberDispatchTest (369 ms total)
+
+[----------] Global test environment tear-down
+[==========] 13 tests from 1 test suite ran. (408 ms total)
+[  PASSED  ] 13 tests.

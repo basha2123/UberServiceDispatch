@@ -1,0 +1,1 @@
+genhtml reports/coverage_filtered.info --output-directory reports/coverage_html --branch-coverage

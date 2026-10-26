@@ -1,0 +1,4 @@
+MISRA C:2012 Cppcheck addon scope: production C source uber_dispatch.c.
+The GoogleTest suite is C++ and is not assessed as MISRA C.
+This automated addon result is not formal MISRA certification.
+MISRA C:2012 Cppcheck addon: PASS; zero findings.

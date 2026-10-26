@@ -1,0 +1,1 @@
+Cppcheck: PASS; no warnings or errors in uber_dispatch.c.

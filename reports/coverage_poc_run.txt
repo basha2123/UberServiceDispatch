@@ -1,0 +1,120 @@
+
+====================================
+ UBER DISPATCH MEMORY ANALYZER
+====================================
+1. Add Driver
+2. Create Ride Request
+3. Display Drivers
+4. Display Active Rides
+5. Process Ride
+6. Memory Statistics
+7. Leak Report
+8. Exit
+Enter Choice : Driver 1 added successfully.
+
+====================================
+ UBER DISPATCH MEMORY ANALYZER
+====================================
+1. Add Driver
+2. Create Ride Request
+3. Display Drivers
+4. Display Active Rides
+5. Process Ride
+6. Memory Statistics
+7. Leak Report
+8. Exit
+Enter Choice : Enter customer name: Ride 1 assigned to Driver 1
+
+====================================
+ UBER DISPATCH MEMORY ANALYZER
+====================================
+1. Add Driver
+2. Create Ride Request
+3. Display Drivers
+4. Display Active Rides
+5. Process Ride
+6. Memory Statistics
+7. Leak Report
+8. Exit
+Enter Choice : 
+Drivers:
+Driver 1: Busy
+
+====================================
+ UBER DISPATCH MEMORY ANALYZER
+====================================
+1. Add Driver
+2. Create Ride Request
+3. Display Drivers
+4. Display Active Rides
+5. Process Ride
+6. Memory Statistics
+7. Leak Report
+8. Exit
+Enter Choice : 
+Active rides:
+Ride 1 | Customer: Rider | Driver: 1
+
+====================================
+ UBER DISPATCH MEMORY ANALYZER
+====================================
+1. Add Driver
+2. Create Ride Request
+3. Display Drivers
+4. Display Active Rides
+5. Process Ride
+6. Memory Statistics
+7. Leak Report
+8. Exit
+Enter Choice : Ride processed successfully.
+
+====================================
+ UBER DISPATCH MEMORY ANALYZER
+====================================
+1. Add Driver
+2. Create Ride Request
+3. Display Drivers
+4. Display Active Rides
+5. Process Ride
+6. Memory Statistics
+7. Leak Report
+8. Exit
+Enter Choice : 
+Memory Statistics:
+Current Memory: 0 bytes
+Peak Memory: 72 bytes
+Active Allocations: 0
+
+====================================
+ UBER DISPATCH MEMORY ANALYZER
+====================================
+1. Add Driver
+2. Create Ride Request
+3. Display Drivers
+4. Display Active Rides
+5. Process Ride
+6. Memory Statistics
+7. Leak Report
+8. Exit
+Enter Choice : 
+Leak Report:
+Total leaked memory: 0 bytes
+
+====================================
+ UBER DISPATCH MEMORY ANALYZER
+====================================
+1. Add Driver
+2. Create Ride Request
+3. Display Drivers
+4. Display Active Rides
+5. Process Ride
+6. Memory Statistics
+7. Leak Report
+8. Exit
+Enter Choice : 
+Final Leak Check
+
+Leak Report:
+Total leaked memory: 0 bytes
+
+Exiting...
