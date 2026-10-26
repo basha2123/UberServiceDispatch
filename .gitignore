@@ -1,0 +1,19 @@
+
+# Build outputs
+build/
+test_uber_dispatch
+test_uber_dispatch_cov
+
+# Coverage outputs
+coverage.info
+coverage_filtered.info
+coverage_report/
+coverage_report_filtered/
+*.gcda
+*.gcno
+*.gcov
+
+# Generated reports and logs
+reports/
+reports_bundle.zip
+uber_dispatch.log

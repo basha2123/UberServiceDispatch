@@ -1,288 +1,304 @@
-#define UNIT_TEST
-
 #include <gtest/gtest.h>
+
+#include <cstdio>
+#include <cstring>
+#include <fstream>
+#include <iterator>
+#include <string>
 
 extern "C"
 {
-#include "uber_dispatch.c"
+#include "uber_dispatch.h"
+}
+
+namespace
+{
+const char *const testLogPath = "reports/test_dispatch.log";
 }
 
 class UberDispatchTest : public ::testing::Test
 {
 protected:
-
     void SetUp() override
     {
-        rideHead = NULL;
-        memoryHead = NULL;
-
-        driverCount = 0;
-
-        currentMemory = 0;
-        peakMemory = 0;
-        activeAllocations = 0;
-
-        totalRequests = 0;
-        completedRides = 0;
+        cleanup();
+        ASSERT_EQ(setLogFile(testLogPath), 0);
     }
 
     void TearDown() override
     {
         cleanup();
+        std::remove(testLogPath);
     }
 };
 
-/* =====================================================
-   MEMORY TESTS
-   ===================================================== */
-
-TEST_F(UberDispatchTest, TrackedMallocSuccess)
+TEST_F(UberDispatchTest, ValidatesLogFilePathAndWritesTimestampedEvents)
 {
-    void* ptr = tracked_malloc(100);
+    char longPath[257];
+    std::memset(longPath, 'x', sizeof(longPath));
+    longPath[sizeof(longPath) - 1U] = '\0';
 
-    ASSERT_NE(ptr, nullptr);
-    EXPECT_EQ(currentMemory, 100);
-    EXPECT_EQ(activeAllocations, 1);
+    EXPECT_EQ(setLogFile(nullptr), -1);
+    EXPECT_EQ(setLogFile(""), -1);
+    EXPECT_EQ(setLogFile(longPath), -1);
+    addDriver();
 
-    tracked_free(ptr);
+    std::ifstream logFile(testLogPath);
+    ASSERT_TRUE(logFile.good());
+    const std::string contents((std::istreambuf_iterator<char>(logFile)),
+                               std::istreambuf_iterator<char>());
+    EXPECT_NE(contents.find(" | Driver added"), std::string::npos);
+    EXPECT_NE(contents.find("20"), std::string::npos);
 }
 
-TEST_F(UberDispatchTest, TrackedFreeNullPointer)
+TEST_F(UberDispatchTest, AddsDriversWithinCapacityAndReleasesAssignments)
 {
-    tracked_free(NULL);
+    for (int index = 0; index < MAX_DRIVERS; ++index)
+    {
+        addDriver();
+    }
 
-    EXPECT_EQ(currentMemory, 0);
-    EXPECT_EQ(activeAllocations, 0);
-}
+    for (int index = 1; index <= MAX_DRIVERS; ++index)
+    {
+        EXPECT_EQ(assignAvailableDriver(), index);
+    }
+    EXPECT_EQ(assignAvailableDriver(), -1);
 
-TEST_F(UberDispatchTest, TrackedFreeValidPointer)
-{
-    void* ptr = tracked_malloc(50);
+    releaseDriver(1);
+    EXPECT_EQ(assignAvailableDriver(), 1);
+    releaseDriver(1);
 
-    tracked_free(ptr);
-
-    EXPECT_EQ(currentMemory, 0);
-    EXPECT_EQ(activeAllocations, 0);
-}
-
-TEST_F(UberDispatchTest, PeakMemoryUpdated)
-{
-    void* p1 = tracked_malloc(100);
-    void* p2 = tracked_malloc(200);
-
-    EXPECT_EQ(peakMemory, 300);
-
-    tracked_free(p1);
-    tracked_free(p2);
-}
-
-/* =====================================================
-   DRIVER TESTS
-   ===================================================== */
-
-TEST_F(UberDispatchTest, AssignAvailableDriver)
-{
-    drivers[0].driverId = 101;
-    drivers[0].available = 1;
-
-    driverCount = 1;
-
-    int id = assignAvailableDriver();
-
-    EXPECT_EQ(id, 101);
-    EXPECT_EQ(drivers[0].available, 0);
-}
-
-TEST_F(UberDispatchTest, AssignNoAvailableDriver)
-{
-    drivers[0].driverId = 101;
-    drivers[0].available = 0;
-
-    driverCount = 1;
-
+    addDriver();
+    EXPECT_EQ(assignAvailableDriver(), 1);
     EXPECT_EQ(assignAvailableDriver(), -1);
 }
 
-TEST_F(UberDispatchTest, ReleaseDriverSuccess)
+TEST_F(UberDispatchTest, TracksAllocationsFailureInjectionAndUnknownFrees)
 {
-    drivers[0].driverId = 101;
-    drivers[0].available = 0;
+    MemoryStatistics statistics{};
+    int unrelatedValue = 0;
 
-    driverCount = 1;
+    setAllocationFailureAfter(0L);
+    EXPECT_EQ(tracked_malloc(32U), nullptr);
 
-    releaseDriver(101);
+    setAllocationFailureAfter(1L);
+    void *firstAllocation = tracked_malloc(32U);
+    ASSERT_NE(firstAllocation, nullptr);
+    EXPECT_EQ(tracked_malloc(8U), nullptr);
+    tracked_free(nullptr);
+    tracked_free(&unrelatedValue);
+    getMemoryStatistics(&statistics);
+    EXPECT_EQ(statistics.currentBytes, 32U);
+    EXPECT_EQ(statistics.allocationCount, 1);
 
-    EXPECT_EQ(drivers[0].available, 1);
+    tracked_free(firstAllocation);
+    getMemoryStatistics(&statistics);
+    EXPECT_EQ(statistics.currentBytes, 0U);
+    EXPECT_EQ(statistics.allocationCount, 0);
+
+    setAllocationFailureAfter(-1L);
+    void *olderAllocation = tracked_malloc(64U);
+    void *newerAllocation = tracked_malloc(96U);
+    ASSERT_NE(olderAllocation, nullptr);
+    ASSERT_NE(newerAllocation, nullptr);
+    tracked_free(olderAllocation);
+    getMemoryStatistics(&statistics);
+    EXPECT_EQ(statistics.currentBytes, 96U);
+    EXPECT_EQ(statistics.allocationCount, 1);
+    tracked_free(newerAllocation);
 }
 
-TEST_F(UberDispatchTest, ReleaseDriverNotFound)
+TEST_F(UberDispatchTest, ReportsLogFileOpenFailure)
 {
-    drivers[0].driverId = 101;
-    drivers[0].available = 0;
+    ASSERT_EQ(setLogFile("/missing-parent-for-uber-dispatch/test.log"), 0);
 
-    driverCount = 1;
+    testing::internal::CaptureStderr();
+    addDriver();
+    const std::string error = testing::internal::GetCapturedStderr();
+    EXPECT_NE(error.find("Unable to open dispatch log file"),
+              std::string::npos);
 
-    releaseDriver(999);
-
-    EXPECT_EQ(drivers[0].available, 0);
+    EXPECT_EQ(setLogFile(testLogPath), 0);
 }
 
-/* =====================================================
-   RIDE TESTS
-   ===================================================== */
-
-TEST_F(UberDispatchTest, CreateRideNode)
+TEST_F(UberDispatchTest, LogsHighMemoryAlertsAndResetsTheAlertAfterFree)
 {
-    Ride* ride =
-        (Ride*)tracked_malloc(sizeof(Ride));
+    void *firstAllocation = tracked_malloc(1024U * 1024U);
+    ASSERT_NE(firstAllocation, nullptr);
+    tracked_free(firstAllocation);
 
-    ASSERT_NE(ride, nullptr);
+    void *secondAllocation = tracked_malloc(1024U * 1024U);
+    ASSERT_NE(secondAllocation, nullptr);
+    tracked_free(secondAllocation);
 
-    ride->rideId = 1;
-    ride->assignedDriver = 101;
-    ride->next = NULL;
-
-    rideHead = ride;
-
-    EXPECT_EQ(rideHead->rideId, 1);
+    std::ifstream logFile(testLogPath);
+    const std::string contents((std::istreambuf_iterator<char>(logFile)),
+                               std::istreambuf_iterator<char>());
+    const std::string alert = "High memory usage alert";
+    const size_t firstAlert = contents.find(alert);
+    ASSERT_NE(firstAlert, std::string::npos);
+    EXPECT_NE(contents.find(alert, firstAlert + alert.size()),
+              std::string::npos);
 }
 
-TEST_F(UberDispatchTest, LinkedListMultipleRides)
+TEST_F(UberDispatchTest, RejectsInvalidAndFailedRideRequests)
 {
-    Ride* r1 =
-        (Ride*)tracked_malloc(sizeof(Ride));
+    int rideId = 0;
+    int driverId = 0;
+    char longName[MAX_CUSTOMER_NAME + 1];
+    std::memset(longName, 'a', MAX_CUSTOMER_NAME);
+    longName[MAX_CUSTOMER_NAME] = '\0';
 
-    Ride* r2 =
-        (Ride*)tracked_malloc(sizeof(Ride));
+    EXPECT_EQ(requestRide(nullptr, &rideId, &driverId), -1);
+    EXPECT_EQ(requestRide("", &rideId, &driverId), -1);
+    EXPECT_EQ(requestRide(longName, &rideId, &driverId), -1);
 
-    r1->rideId = 1;
-    r2->rideId = 2;
+    setAllocationFailureAfter(0L);
+    EXPECT_EQ(requestRide("Rider", &rideId, &driverId), -1);
+    setAllocationFailureAfter(-1L);
 
-    r1->next = r2;
-    r2->next = NULL;
-
-    rideHead = r1;
-
-    EXPECT_EQ(rideHead->rideId, 1);
-    EXPECT_EQ(rideHead->next->rideId, 2);
+    MemoryStatistics statistics{};
+    getMemoryStatistics(&statistics);
+    EXPECT_EQ(statistics.requestCount, 0);
+    EXPECT_EQ(statistics.allocationCount, 0);
 }
 
-/* =====================================================
-   THREAD TEST
-   ===================================================== */
-
-TEST_F(UberDispatchTest, RideProcessorExecution)
+TEST_F(UberDispatchTest, AssignsAndProcessesRideAndUpdatesStatistics)
 {
-    drivers[0].driverId = 101;
-    drivers[0].available = 0;
+    addDriver();
+    int rideId = 0;
+    int driverId = 0;
+    ASSERT_EQ(requestRide("Rider", &rideId, &driverId), 0);
+    EXPECT_EQ(rideId, 1);
+    EXPECT_EQ(driverId, 1);
 
-    driverCount = 1;
+    MemoryStatistics statistics{};
+    getMemoryStatistics(&statistics);
+    EXPECT_EQ(statistics.requestCount, 1);
+    EXPECT_EQ(statistics.completedCount, 0);
+    EXPECT_EQ(statistics.allocationCount, 1);
+    EXPECT_GT(statistics.peakBytes, 0U);
 
-    Ride ride;
+    processRide();
+    getMemoryStatistics(&statistics);
+    EXPECT_EQ(statistics.completedCount, 1);
+    EXPECT_EQ(statistics.allocationCount, 0);
+    EXPECT_EQ(assignAvailableDriver(), 1);
+}
 
-    ride.rideId = 1;
+TEST_F(UberDispatchTest, QueuesRidesWhenThereAreNoAvailableDrivers)
+{
+    int rideId = 0;
+    int driverId = 0;
 
-    strcpy(ride.customer, "John");
+    ASSERT_EQ(requestRide("Queued", &rideId, &driverId), 0);
+    EXPECT_EQ(driverId, -1);
+    EXPECT_EQ(rideId, 1);
 
-    ride.assignedDriver = 101;
+    processRide();
+    MemoryStatistics statistics{};
+    getMemoryStatistics(&statistics);
+    EXPECT_EQ(statistics.completedCount, 1);
+    EXPECT_EQ(statistics.allocationCount, 0);
+}
 
-    completedRides = 0;
+TEST_F(UberDispatchTest, HandlesMissingRidesAndNullStatistics)
+{
+    processRide();
+    getMemoryStatistics(nullptr);
+    MemoryStatistics statistics{};
+    getMemoryStatistics(&statistics);
+    EXPECT_EQ(statistics.requestCount, 0);
+    EXPECT_EQ(statistics.completedCount, 0);
+}
 
+TEST_F(UberDispatchTest, ExercisesDisplayAndStatisticsFunctions)
+{
+    addDriver();
+    ASSERT_EQ(requestRide("Visible", nullptr, nullptr), 0);
+
+    testing::internal::CaptureStdout();
+    displayDrivers();
+    displayRideRequests();
+    memoryStatistics();
+    leakReport();
+    const std::string output = testing::internal::GetCapturedStdout();
+
+    EXPECT_NE(output.find("Driver 1"), std::string::npos);
+    EXPECT_NE(output.find("Visible"), std::string::npos);
+    EXPECT_NE(output.find("Memory Statistics"), std::string::npos);
+    EXPECT_NE(output.find("Leaked block"), std::string::npos);
+
+    cleanup();
+    testing::internal::CaptureStdout();
+    leakReport();
+    const std::string cleanOutput = testing::internal::GetCapturedStdout();
+    EXPECT_NE(cleanOutput.find("Total leaked memory: 0 bytes"),
+              std::string::npos);
+}
+
+TEST_F(UberDispatchTest, ProcessesStandaloneRideAndReleasesItsDriver)
+{
+    addDriver();
+    const int driverId = assignAvailableDriver();
+    ASSERT_EQ(driverId, 1);
+
+    Ride ride{};
+    ride.rideId = 77;
+    ride.assignedDriver = driverId;
+    std::strcpy(ride.customer, "Standalone");
     rideProcessor(&ride);
 
-    EXPECT_EQ(completedRides, 1);
-    EXPECT_EQ(drivers[0].available, 1);
+    MemoryStatistics statistics{};
+    getMemoryStatistics(&statistics);
+    EXPECT_EQ(statistics.completedCount, 1);
+    EXPECT_EQ(assignAvailableDriver(), driverId);
+
+    rideProcessor(nullptr);
+    getMemoryStatistics(&statistics);
+    EXPECT_EQ(statistics.completedCount, 1);
 }
 
-/* =====================================================
-   LEAK TESTS
-   ===================================================== */
-
-TEST_F(UberDispatchTest, LeakExists)
+TEST_F(UberDispatchTest, SimulatesConcurrentRideRequestsAndRejectsInvalidWorkerCounts)
 {
-    tracked_malloc(200);
+    EXPECT_EQ(simulateRideRequests(1U, 0U), -1);
+    EXPECT_EQ(simulateRideRequests(1U, MAX_SIMULATION_WORKERS + 1U), -1);
+    EXPECT_EQ(simulateRideRequests(0U, 1U), 0);
+    ASSERT_EQ(simulateRideRequests(80U, 8U), 0);
 
-    EXPECT_NE(memoryHead, nullptr);
+    MemoryStatistics statistics{};
+    getMemoryStatistics(&statistics);
+    EXPECT_EQ(statistics.requestCount, 80);
+    EXPECT_EQ(statistics.allocationCount, 80);
+
+    testing::internal::CaptureStdout();
+    for (int index = 0; index < 80; ++index)
+    {
+        processRide();
+    }
+    static_cast<void>(testing::internal::GetCapturedStdout());
+    getMemoryStatistics(&statistics);
+    EXPECT_EQ(statistics.completedCount, 80);
+    EXPECT_EQ(statistics.allocationCount, 0);
 }
 
-TEST_F(UberDispatchTest, NoLeakAfterFree)
+TEST_F(UberDispatchTest, CleanupReleasesAllOutstandingRideAllocations)
 {
-    void* ptr = tracked_malloc(200);
-
-    tracked_free(ptr);
-
-    EXPECT_EQ(memoryHead, nullptr);
-}
-
-/* =====================================================
-   CLEANUP TESTS
-   ===================================================== */
-
-TEST_F(UberDispatchTest, CleanupSingleRide)
-{
-    Ride* ride =
-        (Ride*)tracked_malloc(sizeof(Ride));
-
-    ride->next = NULL;
-
-    rideHead = ride;
-
+    ASSERT_EQ(requestRide("First", nullptr, nullptr), 0);
+    ASSERT_EQ(requestRide("Second", nullptr, nullptr), 0);
     cleanup();
 
-    rideHead = NULL;
-
-    EXPECT_EQ(currentMemory, 0);
+    MemoryStatistics statistics{};
+    getMemoryStatistics(&statistics);
+    EXPECT_EQ(statistics.currentBytes, 0U);
+    EXPECT_EQ(statistics.peakBytes, 0U);
+    EXPECT_EQ(statistics.allocationCount, 0);
+    EXPECT_EQ(statistics.requestCount, 0);
+    EXPECT_EQ(statistics.completedCount, 0);
 }
-
-TEST_F(UberDispatchTest, CleanupMultipleRides)
-{
-    Ride* r1 =
-        (Ride*)tracked_malloc(sizeof(Ride));
-
-    Ride* r2 =
-        (Ride*)tracked_malloc(sizeof(Ride));
-
-    Ride* r3 =
-        (Ride*)tracked_malloc(sizeof(Ride));
-
-    r1->next = r2;
-    r2->next = r3;
-    r3->next = NULL;
-
-    rideHead = r1;
-
-    cleanup();
-
-    rideHead = NULL;
-
-    EXPECT_EQ(currentMemory, 0);
-}
-
-/* =====================================================
-   COUNTER TESTS
-   ===================================================== */
-
-TEST_F(UberDispatchTest, RequestCounter)
-{
-    totalRequests++;
-
-    EXPECT_EQ(totalRequests, 1);
-}
-
-TEST_F(UberDispatchTest, CompletedRideCounter)
-{
-    completedRides++;
-
-    EXPECT_EQ(completedRides, 1);
-}
-
-/* =====================================================
-   MAIN
-   ===================================================== */
 
 int main(int argc, char **argv)
 {
     testing::InitGoogleTest(&argc, argv);
-
     return RUN_ALL_TESTS();
 }
